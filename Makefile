@@ -1,6 +1,7 @@
 all: bin/findCard bin/listCards bin/listDevices \
 	   bin/beepCard bin/beepDevice bin/wavData \
-		 bin/myWavData
+		 bin/myWavData \
+		 bin/playWav
 
 bin/findCard: cmd/findCard.go
 	go build -o bin/findCard cmd/findCard.go
@@ -20,6 +21,9 @@ bin/wavData: cmd/wavData.go
 
 bin/myWavData: cmd/myWavData.go
 	go build -o bin/myWavData cmd/myWavData.go
+
+bin/playWav: cmd/playWav.go
+	go build -o bin/playWav cmd/playWav.go
 
 clean:
 	rm bin/*
