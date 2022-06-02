@@ -18,7 +18,7 @@ func FindPlayableDevice(card *alsa.Card, deviceName string) (*alsa.Device, error
 			return device, nil
 		}
 	}
-	return nil, &deviceNotFound{deviceName: deviceName}
+	return nil, &DeviceNotFound{deviceName: deviceName}
 }
 
 func FindRecordableDevice(card *alsa.Card, deviceName string) (*alsa.Device, error) {
@@ -34,5 +34,5 @@ func FindRecordableDevice(card *alsa.Card, deviceName string) (*alsa.Device, err
 			return device, nil
 		}
 	}
-	return nil, &deviceNotFound{deviceName: deviceName}
+	return nil, &DeviceNotFound{deviceName: deviceName}
 }

@@ -8,9 +8,9 @@ func (cnf *cardNotFound) Error() string {
 	return fmt.Sprintf("Card %q not found", cnf.cardName)
 }
 
-type deviceNotFound struct{ deviceName string }
+type DeviceNotFound struct{ deviceName string }
 
-func (cnf *deviceNotFound) Error() string {
+func (cnf *DeviceNotFound) Error() string {
 	return fmt.Sprintf("Device %q not found", cnf.deviceName)
 }
 
