@@ -13,6 +13,8 @@ import (
 	"github.com/go-audio/wav"
 	"github.com/pkg/errors"
 	"github.com/yobert/alsa"
+
+	"github.com/renan-campos/sound-utils/pkg/logging"
 )
 
 func PlayWav(device *alsa.Device, wavFileName string) error {
@@ -102,75 +104,93 @@ func PlayWav(device *alsa.Device, wavFileName string) error {
 		return err
 	}
 
-	fmt.Printf("Negotiated parameters: %d channels, %d hz, %v, %d period size, %d buffer size\n",
+	logging.Debugf("Negotiated parameters: %d channels, %d hz, %v, %d period size, %d buffer size\n",
 		channels, rate, format, periodSize, bufferSize)
 
 	inbuf := audio.IntBuffer{
 		Format: wavFormat,
-		Data:   make([]int, periodSize*channels),
+		Data:   make([]int, periodSize*wavFormat.NumChannels),
 	}
 
 	for !wavDecoder.EOF() {
-		n, err := wavDecoder.PCMBuffer(&inbuf)
+		nSamples, err := wavDecoder.PCMBuffer(&inbuf)
 		if err != nil {
 			return errors.Wrap(err, "failed to fill buffer with wav data")
 		}
-		if n == 0 {
+		if nSamples == 0 {
 			break
 		}
 
 		frames := bytes.Buffer{}
-		for _, sample := range inbuf.Data {
-			switch format {
-			case alsa.S16_LE:
-				// If the wav format is 32_LE, the PCM value must be converted to 16_LE.
-				// The simplest way is to rightshift 16 bits.
-				// However, could there be a smoother way?
-				// Yes! With bit coefficients! I'll do this later.
-				var err error
-				switch wavDecoder.BitDepth {
-				case 32:
-					err = binary.Write(&frames, binary.LittleEndian, int16(sample>>16))
-				case 16:
-					err = binary.Write(&frames, binary.LittleEndian, int16(sample))
-				case 8:
-					return fmt.Errorf("Can't play this yet")
+		for i, sample := range inbuf.Data {
+			var copies int
+			switch {
+			case wavFormat.NumChannels < channels:
+				// Wav file is mono, output is stereo
+				// Double the samples written out the the buffer.
+				copies = 2
+			case wavFormat.NumChannels == channels:
+				// Wav file and output have the same number of channels
+				copies = 1
+			case wavFormat.NumChannels > channels:
+				// Wav file is stereo, output is mono
+				// In this case... skip every odd sample!
+				if i%2 == 0 {
+					continue
+				}
+			}
+			for ; copies > 0; copies-- {
+				switch format {
+				case alsa.S16_LE:
+					// If the wav format is 32_LE, the PCM value must be converted to 16_LE.
+					// The simplest way is to rightshift 16 bits.
+					// However, could there be a smoother way?
+					// Yes! With bit coefficients! I'll do this later.
+					var err error
+					switch wavDecoder.BitDepth {
+					case 32:
+						err = binary.Write(&frames, binary.LittleEndian, int16(sample>>16))
+					case 16:
+						err = binary.Write(&frames, binary.LittleEndian, int16(sample))
+					case 8:
+						return fmt.Errorf("Can't play this yet")
+					default:
+						return fmt.Errorf("Can't play this yet")
+					}
+
+					if err != nil {
+						fmt.Println(err)
+					}
+				case alsa.S32_LE:
+					switch wavDecoder.BitDepth {
+					case 32:
+						if err := binary.Write(&frames, binary.LittleEndian, int32(sample)); err != nil {
+							fmt.Println(err)
+						}
+					case 16:
+						// If the wav format is 16_LE, the PCM value must be converted to int32
+						// The simplest way would be to leftshift it 16 bits.
+						// However, could the be a smoother way?
+						// There sure is pal.
+						if err := binary.Write(&frames, binary.LittleEndian, int32(sample<<16)); err != nil {
+							fmt.Println(err)
+						}
+					case 8:
+						if err := binary.Write(&frames, binary.LittleEndian, int32(sample<<24)); err != nil {
+							fmt.Println(err)
+						}
+					}
+
+					// TODO What about when the number of channels arent the same?
+					// If the wav file is mono but the speakers are stereo, just double the samples.
+					// TODO What about when the sample frequency isn't the same?
+					// When the sample size of the wav file is half of that of the speaker
+					// 22050Hz vs 44100Hz
+					// There are less samples than what is played.
+					// We could duplicate the samples.
 				default:
-					return fmt.Errorf("Can't play this yet")
+					return fmt.Errorf("Unhandled sample format: %v", format)
 				}
-
-				if err != nil {
-					fmt.Println(err)
-				}
-			case alsa.S32_LE:
-				switch wavDecoder.BitDepth {
-				case 32:
-					if err := binary.Write(&frames, binary.LittleEndian, int32(sample)); err != nil {
-						fmt.Println(err)
-					}
-				case 16:
-					// If the wav format is 16_LE, the PCM value must be converted to int32
-					// The simplest way would be to leftshift it 16 bits.
-					// However, could the be a smoother way?
-					// There sure is pal.
-					if err := binary.Write(&frames, binary.LittleEndian, int32(sample<<16)); err != nil {
-						fmt.Println(err)
-					}
-				case 8:
-					if err := binary.Write(&frames, binary.LittleEndian, int32(sample<<24)); err != nil {
-						fmt.Println(err)
-					}
-				}
-
-				// TODO What about when the number of channels arent the same?
-				// If the wav file is mono but the speakers are stereo, just double the samples.
-				// TODO What about when the sample frequency isn't the same?
-				// When the sample size of the wav file is half of that of the speaker
-				// 22050Hz vs 44100Hz
-				// There are less samples than what is played.
-				// We could duplicate the samples.
-			default:
-				return fmt.Errorf("Unhandled sample format: %v", format)
 			}
 		}
 
