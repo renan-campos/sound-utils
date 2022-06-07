@@ -64,7 +64,8 @@ func PlayWav(device *alsa.Device, wavFileName string) error {
 	// When playing a wav file:
 	// The sample rate should be that or higher than what the file specifieds.
 	// The sample rate should be greater than or equal to what the file specifies.
-	rate, err := device.NegotiateRate(wavFormat.SampleRate, 44100)
+	// Only supporting outputs of 44.1 kHz, as these are the only outputs I have!
+	rate, err := device.NegotiateRate(44100)
 	if err != nil {
 		return err
 	}
@@ -109,7 +110,7 @@ func PlayWav(device *alsa.Device, wavFileName string) error {
 
 	inbuf := audio.IntBuffer{
 		Format: wavFormat,
-		Data:   make([]int, periodSize*wavFormat.NumChannels),
+		Data:   make([]int, int(float64(periodSize)*float64(wavFormat.NumChannels)*float64(wavFormat.SampleRate)/float64(rate))),
 	}
 
 	for !wavDecoder.EOF() {
@@ -139,6 +140,10 @@ func PlayWav(device *alsa.Device, wavFileName string) error {
 					continue
 				}
 			}
+			if wavFormat.SampleRate == rate/2 {
+				// Duplicate this sample as the next sample.
+				copies *= 2
+			}
 			for ; copies > 0; copies-- {
 				switch format {
 				case alsa.S16_LE:
@@ -153,7 +158,7 @@ func PlayWav(device *alsa.Device, wavFileName string) error {
 					case 16:
 						err = binary.Write(&frames, binary.LittleEndian, int16(sample))
 					case 8:
-						return fmt.Errorf("Can't play this yet")
+						err = binary.Write(&frames, binary.LittleEndian, int16(sample<<8))
 					default:
 						return fmt.Errorf("Can't play this yet")
 					}
