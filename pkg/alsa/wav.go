@@ -154,11 +154,11 @@ func PlayWav(device *alsa.Device, wavFileName string) error {
 					var err error
 					switch wavDecoder.BitDepth {
 					case 32:
-						err = binary.Write(&frames, binary.LittleEndian, int16(sample>>16))
+						err = binary.Write(&frames, binary.LittleEndian, int16(scale32To16(sample)))
 					case 16:
 						err = binary.Write(&frames, binary.LittleEndian, int16(sample))
 					case 8:
-						err = binary.Write(&frames, binary.LittleEndian, int16(sample<<8))
+						err = binary.Write(&frames, binary.LittleEndian, int16(scale8To16(sample)))
 					default:
 						return fmt.Errorf("Can't play this yet")
 					}
@@ -177,11 +177,11 @@ func PlayWav(device *alsa.Device, wavFileName string) error {
 						// The simplest way would be to leftshift it 16 bits.
 						// However, could the be a smoother way?
 						// There sure is pal.
-						if err := binary.Write(&frames, binary.LittleEndian, int32(sample<<16)); err != nil {
+						if err := binary.Write(&frames, binary.LittleEndian, int32(scale16To32(sample))); err != nil {
 							fmt.Println(err)
 						}
 					case 8:
-						if err := binary.Write(&frames, binary.LittleEndian, int32(sample<<24)); err != nil {
+						if err := binary.Write(&frames, binary.LittleEndian, int32(scale8To32(sample))); err != nil {
 							fmt.Println(err)
 						}
 					}
